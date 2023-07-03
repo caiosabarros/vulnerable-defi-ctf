@@ -6,7 +6,7 @@ describe('[Challenge] Unstoppable', function () {
     let token, vault, receiverContract;
 
     const TOKENS_IN_VAULT = 1000000n * 10n ** 18n;
-    const INITIAL_PLAYER_TOKEN_BALANCE = 10n * 10n ** 18n;
+    const INITIAL_PLAYER_TOKEN_BALANCE = 10n * 10n ** 18n;//10 DVTs
 
     before(async function () {
         /** SETUP SCENARIO - NO NEED TO CHANGE ANYTHING HERE */
@@ -20,8 +20,9 @@ describe('[Challenge] Unstoppable', function () {
             deployer.address // fee recipient
         );
         expect(await vault.asset()).to.eq(token.address);
-
+        //me: approves the vault to spend the tokens
         await token.approve(vault.address, TOKENS_IN_VAULT);
+        //me: ERC4626 inherited function
         await vault.deposit(TOKENS_IN_VAULT, deployer.address);
 
         expect(await token.balanceOf(vault.address)).to.eq(TOKENS_IN_VAULT);
