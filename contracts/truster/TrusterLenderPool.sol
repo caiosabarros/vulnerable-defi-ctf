@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "../DamnValuableToken.sol";
+import "hardhat/console.sol";
 
 /**
  * @title TrusterLenderPool
@@ -33,7 +34,6 @@ contract TrusterLenderPool is ReentrancyGuard {
 
         if (token.balanceOf(address(this)) < balanceBefore)
             revert RepayFailed();
-
         return true;
     }
 }

